@@ -1837,6 +1837,9 @@ function doLogin() {
     stats: { sessions:1, calculations:0, images:0, reports:0 }
   };
 
+  // Persist across refreshes.
+  try { localStorage.setItem('ciq_session', JSON.stringify(SESSION)); } catch(_){}
+
   document.getElementById('navName').textContent = name;
   document.getElementById('navAvatar').textContent = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
   document.getElementById('dashGreeting').textContent = `Welcome, ${name.split(' ')[0]}`;
@@ -1857,12 +1860,33 @@ function doLogin() {
 
 function doLogout() {
   SESSION = null;
+  try { localStorage.removeItem('ciq_session'); } catch(_){}
   document.getElementById('mainApp').classList.add('hidden');
   document.getElementById('authScreen').classList.remove('hidden');
   document.getElementById('authName').value = '';
   stopCamera();
   toast('Signed out', 'steel');
 }
+
+// Auto-restore previous session — skips the name-entry screen on refresh.
+(function restoreSession(){
+  try{
+    const raw = localStorage.getItem('ciq_session');
+    if(!raw) return;
+    const s = JSON.parse(raw);
+    if(!s || !s.name) return;
+    // Defer to next tick so DOM elements exist.
+    document.addEventListener('DOMContentLoaded', ()=>{
+      const auth = document.getElementById('authScreen');
+      const main = document.getElementById('mainApp');
+      const nameInp = document.getElementById('authName');
+      if(!auth || !main || !nameInp) return;
+      nameInp.value = s.name;
+      // Use the existing flow so all UI labels are populated correctly.
+      try { doLogin(); } catch(e){ console.warn('restore failed', e); }
+    });
+  }catch(e){ /* ignore */ }
+})();
 
 
 /* ═══ Detector Target Grade hint ═══ */
@@ -3257,12 +3281,12 @@ function updateSingleThumb(img) {
   }
   const conf = img.result?.confidence ? ` ${img.result.confidence}%` : '';
   const s28 = img.result?.strengthMPa28;
-  // Compute ▲/▼ vs target mean (target grade + 8 MPa per IS 10262)
+  // Compare predicted 28-day to TARGET fck (not fck+8 mean) — predictions
+  // are clamped to ±10% of fck by design, so this gives a meaningful Δ.
   let strengthBadge = '';
   if(img.status==='ok' && s28){
     const tgtGrade = parseFloat(document.getElementById('detectorTargetGrade')?.value || 30);
-    const tgtMean  = tgtGrade + 8;
-    const delta    = +(s28 - tgtMean).toFixed(1);
+    const delta    = +(s28 - tgtGrade).toFixed(1);
     let arrow, bg;
     if(delta >= 1){ arrow = '▲'; bg = 'rgba(22,163,74,0.92)'; }      // green up
     else if(delta <= -1){ arrow = '▼'; bg = 'rgba(220,38,38,0.92)'; } // red down
