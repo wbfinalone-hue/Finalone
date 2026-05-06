@@ -1,4 +1,5 @@
 from fastapi import FastAPI, APIRouter
+from fastapi.responses import FileResponse, HTMLResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -68,6 +69,46 @@ async def get_status_checks():
 
 # Include the router in the main app
 app.include_router(api_router)
+
+# ── ConcreteIQ download endpoints ───────────────────────────────────────
+CONCRETE_DIR = Path("/app/concrete")
+
+@app.get("/api/download/concreteiq.zip")
+async def download_zip():
+    return FileResponse(
+        "/app/concreteiq.zip",
+        media_type="application/zip",
+        filename="concreteiq.zip",
+    )
+
+@app.get("/api/download/index.html")
+async def download_index():
+    return FileResponse(
+        CONCRETE_DIR / "index.html",
+        media_type="text/html; charset=utf-8",
+        filename="index.html",
+    )
+
+@app.get("/api/download/worker.js")
+async def download_worker():
+    return FileResponse(
+        CONCRETE_DIR / "worker.js",
+        media_type="application/javascript",
+        filename="worker.js",
+    )
+
+@app.get("/api/download/README.md")
+async def download_readme():
+    return FileResponse(
+        CONCRETE_DIR / "README.md",
+        media_type="text/markdown",
+        filename="README.md",
+    )
+
+@app.get("/api/preview", response_class=HTMLResponse)
+async def live_preview():
+    """Serves the patched index.html so you can test the AI detector live."""
+    return FileResponse(CONCRETE_DIR / "index.html", media_type="text/html; charset=utf-8")
 
 app.add_middleware(
     CORSMiddleware,
